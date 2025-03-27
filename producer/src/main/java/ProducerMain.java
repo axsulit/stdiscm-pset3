@@ -5,6 +5,13 @@ import com.shared.config.ConfigLoader;
 
 public class ProducerMain {
     public static void main(String[] args) {
+        try {
+            System.out.println("⏳ Waiting for consumer to start...");
+            Thread.sleep(5000); // wait 5 seconds
+        } catch (InterruptedException e) {
+            // ignore
+        }
+
         int threadCount = ConfigLoader.getInt("producer.threads", 1);
         String basePath = ConfigLoader.get("producer.rootvideopath");
 
@@ -15,6 +22,9 @@ public class ProducerMain {
 
         for (int i = 1; i <= threadCount; i++) {
             File folder = new File(basePath + "/folder" + i);
+
+            System.out.println("🧭 Looking for video folders inside: " + new File(basePath).getAbsolutePath());
+
             if (!folder.exists() || !folder.isDirectory()) {
                 System.out.println("⚠️ Skipping missing folder: " + folder.getAbsolutePath());
                 continue;

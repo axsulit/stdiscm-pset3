@@ -33,7 +33,8 @@ public class ProducerWorker implements Runnable {
         String boundary = "===" + System.currentTimeMillis() + "===";
         String LINE_FEED = "\r\n";
 
-        URL url = new URL("http://localhost:8080/upload");
+        //URL url = new URL("http://localhost:8080/upload");
+        URL url = new URL("http://consumer:8080/upload");
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setUseCaches(false);
         conn.setDoOutput(true); // sends POST

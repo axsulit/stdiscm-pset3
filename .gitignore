@@ -11,3 +11,4 @@
 /producer/videos
 /gradle
 /consumer/uploads
+*.mp4

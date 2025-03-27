@@ -16,7 +16,8 @@ public class VideoUploadController {
 public ResponseEntity<String> handleUpload(@RequestParam("file") MultipartFile file) {
     try {
         // Get absolute path relative to application root
-        String uploadPath = new File("uploads").getAbsolutePath();
+        //String uploadPath = new File("uploads").getAbsolutePath();
+        String uploadPath = "/uploads"; 
 
         File uploadDir = new File(uploadPath);
         if (!uploadDir.exists()) {
