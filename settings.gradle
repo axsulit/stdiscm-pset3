@@ -1,0 +1,2 @@
+rootProject.name = 'stdiscm-pset3'
+include 'producer', 'consumer', 'shared'

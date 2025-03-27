@@ -4,3 +4,6 @@
 /producer/build
 /producer/gradle
 /producer/.gradle
+/.gradle
+/build
+/shared/build

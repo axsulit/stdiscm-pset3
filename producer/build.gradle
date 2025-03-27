@@ -15,5 +15,5 @@ repositories {
 }
 
 dependencies {
-    // No external deps yet
+    implementation project(':shared')
 }
