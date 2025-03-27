@@ -7,3 +7,5 @@
 /.gradle
 /build
 /shared/build
+.DS_Store
+/producer/videos

@@ -3,10 +3,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import com.shared.config.ConfigLoader;
 
-
 public class ProducerMain {
     public static void main(String[] args) {
-        int threads = ConfigLoader.getInt("producer.threads", 1);
-        System.out.println("🔼 Starting producer with " + threads + " threads");
+        int threadCount = ConfigLoader.getInt("producer.threads", 1);
+        String basePath = ConfigLoader.get("producer.rootvideopath");
+
+        System.out.println("🔼 Starting producer with " + threadCount + " threads");
+        System.out.println("📁 Base video folder: " + basePath);
+
     }
 }
