@@ -1,0 +1,10 @@
+FROM openjdk:17-jdk-slim as builder
+WORKDIR /app
+COPY . .
+RUN ./gradlew :producer:build --no-daemon
+
+FROM openjdk:17-jdk-slim
+WORKDIR /app
+COPY --from=builder /app/producer/build/libs/*.jar app.jar
+VOLUME /videos
+ENTRYPOINT ["java", "-jar", "app.jar"]

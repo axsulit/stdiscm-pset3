@@ -1,0 +1,14 @@
+FROM openjdk:17-jdk-slim as builder
+
+WORKDIR /app
+
+COPY . .
+
+RUN ./gradlew :consumer:build --no-daemon
+
+FROM openjdk:17-jdk-slim
+WORKDIR /app
+COPY --from=builder /app/consumer/build/libs/*.jar app.jar
+VOLUME /uploads
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]

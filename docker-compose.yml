@@ -1,26 +1,30 @@
 version: '3.8'
 
 services:
-  producer:
-    build: ./producer
-    container_name: producer
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    container_name: consumer
+    ports:
+      - "8080:8080"
     volumes:
-      - ./producer/videos:/videos
+      - ./consumer/videos:/app/uploads
     networks:
       - media-net
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile.producer
+    container_name: producer
     depends_on:
       - consumer
-
-  consumer:
-    build: ./consumer
-    container_name: consumer
     volumes:
-      - ./consumer/uploads:/uploads
+      - ./producer/videos:/app/videos
     networks:
       - media-net
-    ports:
-      - "8080:8080"  # Expose web GUI on host
+    command: ["java", "-jar", "app.jar"]
 
 networks:
   media-net:
-    driver: bridge
