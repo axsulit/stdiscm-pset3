@@ -1,0 +1,19 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.distributed'
+version = '1.0'
+
+application {
+    mainClass = 'ProducerMain'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // No external deps yet
+}

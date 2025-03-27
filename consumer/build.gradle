@@ -1,0 +1,23 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.springframework.boot' version '3.2.2'  // or latest
+    id 'io.spring.dependency-management' version '1.1.4'
+}
+
+group = 'com.distributed'
+version = '1.0'
+sourceCompatibility = '17'
+
+application {
+    mainClass = 'com.consumer.ConsumerApplication'  
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf' // for web pages
+}

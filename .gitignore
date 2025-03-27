@@ -1,0 +1,6 @@
+/consumer/.gradle
+/consumer/build
+/consumer/gradle
+/producer/build
+/producer/gradle
+/producer/.gradle

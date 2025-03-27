@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  producer:
+    build: ./producer
+    container_name: producer
+    volumes:
+      - ./producer/videos:/videos
+    networks:
+      - media-net
+    depends_on:
+      - consumer
+
+  consumer:
+    build: ./consumer
+    container_name: consumer
+    volumes:
+      - ./consumer/uploads:/uploads
+    networks:
+      - media-net
+    ports:
+      - "8080:8080"  # Expose web GUI on host
+
+networks:
+  media-net:
+    driver: bridge
