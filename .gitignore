@@ -10,3 +10,4 @@
 .DS_Store
 /producer/videos
 /gradle
+/consumer/uploads
