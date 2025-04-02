@@ -90,6 +90,14 @@ public class VideoUploadController {
         Path finalPath = uploadDir.resolve(compressedFilename);
 
         try {
+            // Check if file already exists in uploads directory
+            if (Files.exists(finalPath)) {
+                System.out.println("⚠️ File already exists in uploads: " + originalFilename);
+                // Clean up temp file
+                Files.deleteIfExists(tempFilePath);
+                return;
+            }
+
             // Compress the video using FFmpeg
             System.out.println("🎥 Compressing video: " + originalFilename);
             ProcessBuilder processBuilder = new ProcessBuilder(
@@ -124,7 +132,59 @@ public class VideoUploadController {
             // If any error occurs, move the original file
             Files.move(tempFilePath, finalPath);
             System.out.println("✅ Moved original video to: " + finalPath);
+        } finally {
+            // Clean up any remaining temp files
+            try {
+                Files.deleteIfExists(tempFilePath);
+                Files.deleteIfExists(compressedPath);
+            } catch (IOException e) {
+                System.out.println("⚠️ Failed to clean up temp files: " + e.getMessage());
+            }
         }
+    }
+
+    private String generateUniqueFilename(String originalFilename) {
+        String baseName = originalFilename;
+        String extension = "";
+        int dotIndex = originalFilename.lastIndexOf('.');
+        
+        if (dotIndex > 0) {
+            baseName = originalFilename.substring(0, dotIndex);
+            extension = originalFilename.substring(dotIndex);
+        }
+
+        int copyNumber = 1;
+        String newFilename = originalFilename;
+        
+        // Check both uploads directory and queue for existing files
+        while (true) {
+            // Check if file exists in uploads directory
+            Path existingFile = uploadDir.resolve("compressed_" + newFilename);
+            if (Files.exists(existingFile)) {
+                copyNumber++;
+                newFilename = baseName + "_" + copyNumber + extension;
+                continue;
+            }
+
+            // Check if file exists in queue
+            final String currentFilename = newFilename; // Create final copy for lambda
+            boolean isInQueue = uploadQueue.stream()
+                .anyMatch(path -> path.getFileName().toString().equals(currentFilename));
+            if (isInQueue) {
+                copyNumber++;
+                newFilename = baseName + "_" + copyNumber + extension;
+                continue;
+            }
+
+            // If we get here, we found a unique filename
+            break;
+        }
+
+        if (copyNumber > 1) {
+            System.out.println("📝 Renaming duplicate file: " + originalFilename + " → " + newFilename);
+        }
+        
+        return newFilename;
     }
 
     @PostMapping("/upload")
@@ -133,40 +193,35 @@ public class VideoUploadController {
         System.out.println("📊 Current queue size: " + currentQueueSize.get() + "/" + maxQueueLength);
         
         try {
-            // Check for duplicate file in uploads directory
-            Path existingFile = uploadDir.resolve("compressed_" + file.getOriginalFilename());
-            if (Files.exists(existingFile)) {
-                System.out.println("⚠️ Duplicate file detected: " + file.getOriginalFilename());
-                return ResponseEntity.ok("Video dropped - Duplicate file");
-            }
-
-            // Check for duplicate in queue
-            boolean isInQueue = uploadQueue.stream()
-                .anyMatch(path -> path.getFileName().toString().equals(file.getOriginalFilename()));
-            if (isInQueue) {
-                System.out.println("⚠️ File already in queue: " + file.getOriginalFilename());
-                return ResponseEntity.ok("Video dropped - Already in queue");
-            }
+            // Generate unique filename
+            String uniqueFilename = generateUniqueFilename(file.getOriginalFilename());
 
             // Check if queue is full
             if (currentQueueSize.get() >= maxQueueLength) {
-                System.out.println("⚠️ Queue full - Rejecting upload: " + file.getOriginalFilename());
+                System.out.println("⚠️ Queue full - Rejecting upload: " + uniqueFilename);
                 System.out.println("📊 Queue status: " + currentQueueSize.get() + "/" + maxQueueLength);
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body("Queue full - Please wait before uploading more videos");
             }
 
-            // Save to temp directory first
-            Path tempFile = tempDir.resolve(file.getOriginalFilename());
+            // Check if file already exists in uploads directory
+            Path existingFile = uploadDir.resolve("compressed_" + uniqueFilename);
+            if (Files.exists(existingFile)) {
+                System.out.println("⚠️ File already exists in uploads: " + uniqueFilename);
+                return ResponseEntity.ok("File already exists in uploads: " + uniqueFilename);
+            }
+
+            // Save to temp directory with unique filename
+            Path tempFile = tempDir.resolve(uniqueFilename);
             file.transferTo(tempFile);
             
             // Add temp file path to queue
             uploadQueue.offer(tempFile);
             currentQueueSize.incrementAndGet();
-            System.out.println("➕ Added to queue: " + file.getOriginalFilename());
+            System.out.println("➕ Added to queue: " + uniqueFilename);
             System.out.println("📊 Queue size after add: " + currentQueueSize.get() + "/" + maxQueueLength);
 
-            return ResponseEntity.ok("Queued for processing: " + file.getOriginalFilename());
+            return ResponseEntity.ok("Queued for processing: " + uniqueFilename);
         } catch (Exception e) {
             System.out.println("❌ Failed to queue: " + file.getOriginalFilename());
             System.out.println("📊 Queue size after failure: " + currentQueueSize.get() + "/" + maxQueueLength);
