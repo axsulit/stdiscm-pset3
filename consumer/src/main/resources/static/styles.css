@@ -47,7 +47,9 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
-  padding: 20px 0;
+  padding: 0 0 40px 0;
+  min-height: calc(100vh - 200px); /* Account for header and padding */
+  align-items: start; /* Change from center to start */
 }
 
 .video-container {
@@ -280,4 +282,46 @@ video:focus {
     transform: translateX(100%);
     opacity: 0;
   }
+}
+
+/* Empty queue placeholder */
+.empty-queue {
+  grid-column: 1 / -1; /* Span all columns */
+  width: 100%;
+  height: auto;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border: 2px dashed var(--accent-green);
+  margin: 0;
+  padding: 20px 0;
+  margin-top: 40px; /* Add some space from the top */
+}
+
+.empty-queue-content {
+  text-align: center;
+  padding: 30px; /* Slightly reduce padding */
+  max-width: 500px; /* Slightly reduce max-width */
+}
+
+.empty-queue-icon {
+  font-size: 56px; /* Slightly smaller icon */
+  margin-bottom: 20px; /* Slightly reduce margin */
+}
+
+.empty-queue h2 {
+  color: var(--primary-green);
+  margin: 0 0 12px; /* Slightly reduce margin */
+  font-size: 24px; /* Slightly smaller heading */
+}
+
+.empty-queue p {
+  color: var(--text-dark);
+  margin: 0;
+  font-size: 16px; /* Slightly smaller text */
+  opacity: 0.8;
 }

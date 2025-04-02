@@ -46,6 +46,20 @@ function displayVideos(files) {
   const container = document.getElementById('videos');
   container.innerHTML = '';
 
+  if (files.length === 0) {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'empty-queue';
+    placeholder.innerHTML = `
+      <div class="empty-queue-content">
+        <div class="empty-queue-icon">🌱</div>
+        <h2>Your queue is green and ready</h2>
+        <p>Upload a video to get started</p>
+      </div>
+    `;
+    container.appendChild(placeholder);
+    return;
+  }
+
   files.forEach(file => {
     const div = document.createElement('div');
     div.className = 'video-container';
