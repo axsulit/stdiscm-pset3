@@ -39,15 +39,13 @@ public class ProducerMain {
      * @throws Exception if the consumer fails to start after maximum retries
      */
     private static void waitForConsumer() throws Exception {
-        System.out.println("⏳ Waiting for consumer to start...");
-        
         String consumerUrl = getConsumerUrl();
         for (int i = 0; i < MAX_RETRIES; i++) {
             if (isConsumerReady(consumerUrl)) {
                 System.out.println("✅ Consumer is ready!");
                 return;
             }
-            logRetryAttempt(i);
+            System.out.println("⏳ Waiting for consumer... (attempt " + (i + 1) + "/" + MAX_RETRIES + ")");
             Thread.sleep(RETRY_DELAY_MS);
         }
         
@@ -91,14 +89,6 @@ public class ProducerMain {
         conn.setConnectTimeout(CONNECTION_TIMEOUT_MS);
         conn.setReadTimeout(CONNECTION_TIMEOUT_MS);
         return conn;
-    }
-
-    /**
-     * Logs a retry attempt while waiting for the consumer.
-     * @param attempt The current attempt number
-     */
-    private static void logRetryAttempt(int attempt) {
-        System.out.println("⏳ Waiting for consumer... (attempt " + (attempt + 1) + "/" + MAX_RETRIES + ")");
     }
 
     /**

@@ -193,7 +193,7 @@ public class ProducerWorker implements Runnable {
         int responseCode = conn.getResponseCode();
         
         if (responseCode == HttpURLConnection.HTTP_UNAVAILABLE) {
-            System.out.println("⏳ Queue full, waiting " + backoffMs + "ms before retry...");
+            System.out.println("⏳ Queue full for " + filename + ", waiting " + backoffMs + "ms before retry...");
             try {
                 Thread.sleep(backoffMs);
             } catch (InterruptedException e) {
