@@ -7,17 +7,12 @@ import com.shared.config.ConfigLoader;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
@@ -32,7 +27,6 @@ public class VideoUploadController {
     private final AtomicInteger currentQueueSize;
     private final int maxQueueLength;
     private final ExecutorService processingExecutor;
-    private final Set<String> fileHashes; // Store file hashes
 
     public VideoUploadController() {
         // Use absolute paths
@@ -51,85 +45,13 @@ public class VideoUploadController {
         this.currentQueueSize = new AtomicInteger(0);
         this.maxQueueLength = ConfigLoader.getInt("queue.length", 5);
         this.processingExecutor = Executors.newSingleThreadExecutor();
-        this.fileHashes = ConcurrentHashMap.newKeySet();
         
         System.out.println("🚀 Consumer initialized with max queue length: " + maxQueueLength);
         System.out.println("📁 Upload directory: " + uploadDir);
         System.out.println("📁 Temp directory: " + tempDir);
         
-        // Initialize existing file hashes
-        initializeExistingHashes();
-        
         // Start the processing thread
         startProcessingThread();
-    }
-
-    private void initializeExistingHashes() {
-        try {
-            Files.list(uploadDir)
-                .filter(path -> path.toString().endsWith(".mp4"))
-                .forEach(path -> {
-                    try {
-                        String hash = calculateFileHash(path);
-                        fileHashes.add(hash);
-                        System.out.println("📝 Initialized hash for existing file: " + path.getFileName());
-                    } catch (IOException e) {
-                        System.out.println("❌ Failed to calculate hash for: " + path.getFileName());
-                    }
-                });
-        } catch (IOException e) {
-            System.out.println("❌ Failed to initialize existing hashes");
-        }
-    }
-
-    private String calculateFileHash(Path filePath) throws IOException {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            
-            try (InputStream is = Files.newInputStream(filePath)) {
-                while ((bytesRead = is.read(buffer)) != -1) {
-                    digest.update(buffer, 0, bytesRead);
-                }
-            }
-            
-            byte[] hash = digest.digest();
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IOException("Failed to calculate hash", e);
-        }
-    }
-
-    private String calculateFileHash(MultipartFile file) throws IOException {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            
-            try (InputStream is = file.getInputStream()) {
-                while ((bytesRead = is.read(buffer)) != -1) {
-                    digest.update(buffer, 0, bytesRead);
-                }
-            }
-            
-            byte[] hash = digest.digest();
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IOException("Failed to calculate hash", e);
-        }
     }
 
     private void startProcessingThread() {
@@ -163,6 +85,21 @@ public class VideoUploadController {
         System.out.println("📊 Current queue size: " + currentQueueSize.get() + "/" + maxQueueLength);
         
         try {
+            // Check for duplicate file in uploads directory
+            Path existingFile = uploadDir.resolve(file.getOriginalFilename());
+            if (Files.exists(existingFile)) {
+                System.out.println("⚠️ Duplicate file detected: " + file.getOriginalFilename());
+                return ResponseEntity.ok("Video dropped - Duplicate file");
+            }
+
+            // Check for duplicate in queue
+            boolean isInQueue = uploadQueue.stream()
+                .anyMatch(path -> path.getFileName().toString().equals(file.getOriginalFilename()));
+            if (isInQueue) {
+                System.out.println("⚠️ File already in queue: " + file.getOriginalFilename());
+                return ResponseEntity.ok("Video dropped - Already in queue");
+            }
+
             // Check if queue is full
             if (currentQueueSize.get() >= maxQueueLength) {
                 System.out.println("⚠️ Queue full - Dropping video: " + file.getOriginalFilename());
@@ -170,25 +107,13 @@ public class VideoUploadController {
                 return ResponseEntity.ok("Video dropped - Queue full");
             }
 
-            // Calculate file hash
-            String fileHash = calculateFileHash(file);
-            System.out.println("🔍 File hash: " + fileHash);
-
-            // Check for duplicates
-            if (fileHashes.contains(fileHash)) {
-                System.out.println("⚠️ Duplicate file detected - Skipping: " + file.getOriginalFilename());
-                return ResponseEntity.ok("Video skipped - Duplicate detected");
-            }
-
             // Save to temp directory first
             Path tempFile = tempDir.resolve(file.getOriginalFilename());
             file.transferTo(tempFile);
             
-            // Add temp file path to queue and hash to set
+            // Add temp file path to queue
             uploadQueue.offer(tempFile);
             currentQueueSize.incrementAndGet();
-            fileHashes.add(fileHash);
-            
             System.out.println("➕ Added to queue: " + file.getOriginalFilename());
             System.out.println("📊 Queue size after add: " + currentQueueSize.get() + "/" + maxQueueLength);
 
