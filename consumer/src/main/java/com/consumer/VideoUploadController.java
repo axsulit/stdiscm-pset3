@@ -20,129 +20,215 @@ import java.util.concurrent.Executors;
 
 @RestController
 public class VideoUploadController {
+    // Constants for file handling and processing
+    private static final String COMPRESSED_PREFIX = "compressed_";  // Prefix for compressed video files
+    private static final String UPLOADS_DIR = "uploads";           // Directory for final processed videos
+    private static final String TEMP_DIR = "temp";                 // Directory for temporary files
+    private static final int QUEUE_POLL_DELAY_MS = 100;           // Delay between queue polling attempts
+    private static final String FFMPEG_COMMAND = "ffmpeg";         // FFmpeg command for video processing
+    private static final String[] FFMPEG_ARGS = {
+        "-c:v", "libx264",    // Video codec
+        "-crf", "28",         // Quality setting (18-28 is good, lower = better quality)
+        "-preset", "slow",    // Encoding speed preset
+        "-c:a", "aac",        // Audio codec
+        "-b:a", "96k",        // Audio bitrate
+        "-vf", "scale=1280:-2", // Scale video to 1280px width, keep aspect ratio
+        "-y"                  // Overwrite output file if exists
+    };
 
-    private final Path uploadDir;
-    private final Path tempDir;
-    private final ConcurrentLinkedQueue<Path> uploadQueue;
-    private final AtomicInteger currentQueueSize;
-    private final int maxQueueLength;
-    private final ExecutorService processingExecutor;
-    private final int numConsumerThreads;
+    // Instance variables for managing the video processing system
+    private final Path uploadDir;                    // Directory for processed videos
+    private final Path tempDir;                      // Directory for temporary files
+    private final ConcurrentLinkedQueue<Path> uploadQueue;  // Queue for pending video processing
+    private final AtomicInteger currentQueueSize;    // Current number of items in queue
+    private final int maxQueueLength;                // Maximum allowed queue size
+    private final ExecutorService processingExecutor; // Thread pool for processing videos
+    private final int numConsumerThreads;            // Number of processing threads
 
+    /**
+     * Initializes the VideoUploadController with necessary directories and processing threads.
+     * Sets up the queue system and starts the processing threads.
+     */
     public VideoUploadController() {
-        // Use absolute paths
-        this.uploadDir = Paths.get(System.getProperty("user.dir"), "uploads").toAbsolutePath();
-        this.tempDir = Paths.get(System.getProperty("user.dir"), "temp").toAbsolutePath();
+        this.uploadDir = initializeDirectory(UPLOADS_DIR);
+        this.tempDir = initializeDirectory(TEMP_DIR);
         
-        // Create directories if they don't exist
-        try {
-            Files.createDirectories(uploadDir);
-            Files.createDirectories(tempDir);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
         this.uploadQueue = new ConcurrentLinkedQueue<>();
         this.currentQueueSize = new AtomicInteger(0);
         this.maxQueueLength = ConfigLoader.getInt("queue.length", 5);
         this.numConsumerThreads = ConfigLoader.getInt("consumer.threads", 1);
         
-        // Create thread pool with specified number of threads
         this.processingExecutor = Executors.newFixedThreadPool(numConsumerThreads);
         
+        logInitialization();
+        startProcessingThreads();
+    }
+
+    /**
+     * Creates and initializes a directory if it doesn't exist.
+     * @param dirName The name of the directory to create
+     * @return The Path object representing the created directory
+     */
+    private Path initializeDirectory(String dirName) {
+        Path dir = Paths.get(System.getProperty("user.dir"), dirName).toAbsolutePath();
+        try {
+            Files.createDirectories(dir);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return dir;
+    }
+
+    /**
+     * Logs the initialization parameters of the controller.
+     */
+    private void logInitialization() {
         System.out.println("🚀 Consumer initialized with:");
         System.out.println("   - Max queue length: " + maxQueueLength);
         System.out.println("   - Number of processing threads: " + numConsumerThreads);
         System.out.println("   - Upload directory: " + uploadDir);
         System.out.println("   - Temp directory: " + tempDir);
-        
-        // Start multiple processing threads
+    }
+
+    /**
+     * Starts the processing threads that will handle video processing.
+     */
+    private void startProcessingThreads() {
         for (int i = 0; i < numConsumerThreads; i++) {
             final int threadId = i + 1;
             processingExecutor.submit(() -> processQueue(threadId));
         }
     }
 
+    /**
+     * Continuously processes videos from the queue.
+     * @param threadId The ID of the processing thread
+     */
     private void processQueue(int threadId) {
         System.out.println("🔄 Processing thread " + threadId + " started");
         while (true) {
             try {
                 Path tempFilePath = uploadQueue.poll();
                 if (tempFilePath != null) {
-                    System.out.println("🎥 Thread " + threadId + " processing: " + tempFilePath.getFileName());
-                    processFile(tempFilePath);
+                    processVideoFile(tempFilePath, threadId);
                     currentQueueSize.decrementAndGet();
-                    System.out.println("✅ Thread " + threadId + " completed: " + tempFilePath.getFileName());
                     System.out.println("📊 Queue size after processing: " + currentQueueSize.get() + "/" + maxQueueLength);
                 }
-                Thread.sleep(100); // Small delay to prevent busy waiting
+                Thread.sleep(QUEUE_POLL_DELAY_MS);
             } catch (Exception e) {
-                System.out.println("❌ Error in processing thread " + threadId + ": " + e.getMessage());
-                e.printStackTrace();
+                logError("Error in processing thread " + threadId, e);
             }
         }
     }
 
-    private void processFile(Path tempFilePath) throws IOException {
+    /**
+     * Processes a single video file, including compression and moving to final location.
+     * @param tempFilePath Path to the temporary video file
+     * @param threadId ID of the processing thread
+     * @throws IOException if file operations fail
+     */
+    private void processVideoFile(Path tempFilePath, int threadId) throws IOException {
         String originalFilename = tempFilePath.getFileName().toString();
-        String compressedFilename = "compressed_" + originalFilename;
+        System.out.println("🎥 Thread " + threadId + " processing: " + originalFilename);
+        
+        String compressedFilename = COMPRESSED_PREFIX + originalFilename;
         Path compressedPath = tempDir.resolve(compressedFilename);
         Path finalPath = uploadDir.resolve(compressedFilename);
 
         try {
-            // Check if file already exists in uploads directory
-            if (Files.exists(finalPath)) {
-                System.out.println("⚠️ File already exists in uploads: " + originalFilename);
-                // Clean up temp file
-                Files.deleteIfExists(tempFilePath);
+            if (handleExistingFile(finalPath, tempFilePath, originalFilename)) {
                 return;
             }
 
-            // Compress the video using FFmpeg
-            System.out.println("🎥 Compressing video: " + originalFilename);
-            ProcessBuilder processBuilder = new ProcessBuilder(
-                "ffmpeg", "-i", tempFilePath.toString(),
-                "-c:v", "libx264",        // Use H.264 codec
-                "-crf", "28",             // Constant Rate Factor (18-28 is good, lower = better quality)
-                "-preset", "slow",      // Encoding speed preset
-                "-c:a", "aac",            // Audio codec
-                "-b:a", "96k",           // Audio bitrate
-                "-vf", "scale=1280:-2",  // Scale video to 1280px width, keep aspect ratio
-                "-y",                     // Overwrite output file if exists
-                compressedPath.toString()
-            );
-
-            Process process = processBuilder.start();
-            int exitCode = process.waitFor();
-
-            if (exitCode == 0) {
-                System.out.println("✅ Video compressed successfully: " + originalFilename);
-                // Move the compressed file to uploads directory
-                Files.move(compressedPath, finalPath);
-                System.out.println("✅ Moved compressed video to: " + finalPath);
-            } else {
-                System.out.println("❌ Video compression failed for: " + originalFilename);
-                // If compression fails, move the original file
-                Files.move(tempFilePath, finalPath);
-                System.out.println("✅ Moved original video to: " + finalPath);
-            }
-        } catch (Exception e) {
-            System.out.println("❌ Error processing video: " + originalFilename);
-            e.printStackTrace();
-            // If any error occurs, move the original file
-            Files.move(tempFilePath, finalPath);
-            System.out.println("✅ Moved original video to: " + finalPath);
-        } finally {
-            // Clean up any remaining temp files
+            boolean compressionSuccess = false;
             try {
-                Files.deleteIfExists(tempFilePath);
-                Files.deleteIfExists(compressedPath);
+                compressionSuccess = compressVideo(tempFilePath, compressedPath, originalFilename);
+            } catch (InterruptedException e) {
+                System.out.println("⚠️ Video compression interrupted for: " + originalFilename);
+                Thread.currentThread().interrupt();
+            }
+
+            if (compressionSuccess) {
+                moveFile(compressedPath, finalPath, "compressed");
+            } else {
+                moveFile(tempFilePath, finalPath, "original");
+            }
+        } finally {
+            cleanupTempFiles(tempFilePath, compressedPath);
+        }
+    }
+
+    /**
+     * Handles the case where a file already exists in the uploads directory.
+     * @param finalPath Path where the file would be stored
+     * @param tempFilePath Path to the temporary file
+     * @param originalFilename Original name of the file
+     * @return true if file exists and was handled, false otherwise
+     * @throws IOException if file operations fail
+     */
+    private boolean handleExistingFile(Path finalPath, Path tempFilePath, String originalFilename) throws IOException {
+        if (Files.exists(finalPath)) {
+            System.out.println("⚠️ File already exists in uploads: " + originalFilename);
+            Files.deleteIfExists(tempFilePath);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Compresses a video file using FFmpeg.
+     * @param inputPath Path to the input video file
+     * @param outputPath Path where the compressed video will be saved
+     * @param filename Name of the video file
+     * @return true if compression was successful, false otherwise
+     * @throws IOException if file operations fail
+     * @throws InterruptedException if the compression process is interrupted
+     */
+    private boolean compressVideo(Path inputPath, Path outputPath, String filename) throws IOException, InterruptedException {
+        System.out.println("🎥 Compressing video: " + filename);
+        
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        processBuilder.command(FFMPEG_COMMAND, "-i", inputPath.toString());
+        processBuilder.command().addAll(Arrays.asList(FFMPEG_ARGS));
+        processBuilder.command().add(outputPath.toString());
+
+        Process process = processBuilder.start();
+        int exitCode = process.waitFor();
+        
+        return exitCode == 0;
+    }
+
+    /**
+     * Moves a file from source to destination.
+     * @param source Source path of the file
+     * @param destination Destination path for the file
+     * @param type Type of file being moved (for logging)
+     * @throws IOException if the move operation fails
+     */
+    private void moveFile(Path source, Path destination, String type) throws IOException {
+        Files.move(source, destination);
+        System.out.println("✅ Moved " + type + " video to: " + destination);
+    }
+
+    /**
+     * Cleans up temporary files after processing.
+     * @param files Array of file paths to clean up
+     */
+    private void cleanupTempFiles(Path... files) {
+        for (Path file : files) {
+            try {
+                Files.deleteIfExists(file);
             } catch (IOException e) {
-                System.out.println("⚠️ Failed to clean up temp files: " + e.getMessage());
+                System.out.println("⚠️ Failed to clean up temp file: " + file + " - " + e.getMessage());
             }
         }
     }
 
+    /**
+     * Generates a unique filename to avoid conflicts.
+     * @param originalFilename Original name of the file
+     * @return A unique filename
+     */
     private String generateUniqueFilename(String originalFilename) {
         String baseName = originalFilename;
         String extension = "";
@@ -156,28 +242,9 @@ public class VideoUploadController {
         int copyNumber = 1;
         String newFilename = originalFilename;
         
-        // Check both uploads directory and queue for existing files
-        while (true) {
-            // Check if file exists in uploads directory
-            Path existingFile = uploadDir.resolve("compressed_" + newFilename);
-            if (Files.exists(existingFile)) {
-                copyNumber++;
-                newFilename = baseName + "_" + copyNumber + extension;
-                continue;
-            }
-
-            // Check if file exists in queue
-            final String currentFilename = newFilename; // Create final copy for lambda
-            boolean isInQueue = uploadQueue.stream()
-                .anyMatch(path -> path.getFileName().toString().equals(currentFilename));
-            if (isInQueue) {
-                copyNumber++;
-                newFilename = baseName + "_" + copyNumber + extension;
-                continue;
-            }
-
-            // If we get here, we found a unique filename
-            break;
+        while (isFilenameTaken(newFilename)) {
+            copyNumber++;
+            newFilename = baseName + "_" + copyNumber + extension;
         }
 
         if (copyNumber > 1) {
@@ -187,50 +254,138 @@ public class VideoUploadController {
         return newFilename;
     }
 
+    /**
+     * Checks if a filename is already in use in the uploads directory or queue.
+     * @param filename The filename to check
+     * @return true if the filename is taken, false otherwise
+     */
+    private boolean isFilenameTaken(String filename) {
+        // Check uploads directory
+        if (Files.exists(uploadDir.resolve(COMPRESSED_PREFIX + filename))) {
+            return true;
+        }
+
+        // Check queue
+        final String currentFilename = filename;
+        return uploadQueue.stream()
+            .anyMatch(path -> path.getFileName().toString().equals(currentFilename));
+    }
+
+    /**
+     * Handles incoming video upload requests.
+     * @param file The uploaded video file
+     * @return ResponseEntity containing the status of the upload
+     */
     @PostMapping("/upload")
     public ResponseEntity<String> handleUpload(@RequestParam("file") MultipartFile file) {
-        System.out.println("\n📥 Received upload request for: " + file.getOriginalFilename());
+        String originalFilename = file.getOriginalFilename();
+        System.out.println("\n📥 Received upload request for: " + originalFilename);
         System.out.println("📊 Current queue size: " + currentQueueSize.get() + "/" + maxQueueLength);
         
         try {
-            // Generate unique filename
-            String uniqueFilename = generateUniqueFilename(file.getOriginalFilename());
-
-            // Check if queue is full
-            if (currentQueueSize.get() >= maxQueueLength) {
-                System.out.println("⚠️ Queue full - Rejecting upload: " + uniqueFilename);
-                System.out.println("📊 Queue status: " + currentQueueSize.get() + "/" + maxQueueLength);
-                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body("Queue full - Please wait before uploading more videos");
-            }
-
-            // Check if file already exists in uploads directory
-            Path existingFile = uploadDir.resolve("compressed_" + uniqueFilename);
-            if (Files.exists(existingFile)) {
-                System.out.println("⚠️ File already exists in uploads: " + uniqueFilename);
-                return ResponseEntity.ok("File already exists in uploads: " + uniqueFilename);
-            }
-
-            // Save to temp directory with unique filename
-            Path tempFile = tempDir.resolve(uniqueFilename);
-            file.transferTo(tempFile);
+            String uniqueFilename = generateUniqueFilename(originalFilename);
             
-            // Add temp file path to queue
-            uploadQueue.offer(tempFile);
-            currentQueueSize.incrementAndGet();
-            System.out.println("➕ Added to queue: " + uniqueFilename);
-            System.out.println("📊 Queue size after add: " + currentQueueSize.get() + "/" + maxQueueLength);
+            if (isQueueFull()) {
+                return handleQueueFull(uniqueFilename);
+            }
 
-            return ResponseEntity.ok("Queued for processing: " + uniqueFilename);
+            if (isFileAlreadyExists(uniqueFilename)) {
+                return handleExistingFile(uniqueFilename);
+            }
+
+            return queueFileForProcessing(file, uniqueFilename);
         } catch (Exception e) {
-            System.out.println("❌ Failed to queue: " + file.getOriginalFilename());
-            System.out.println("📊 Queue size after failure: " + currentQueueSize.get() + "/" + maxQueueLength);
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to queue: " + e.getMessage());
+            return handleUploadError(originalFilename, e);
         }
     }
 
+    /**
+     * Checks if the processing queue is full.
+     * @return true if the queue is full, false otherwise
+     */
+    private boolean isQueueFull() {
+        return currentQueueSize.get() >= maxQueueLength;
+    }
+
+    /**
+     * Handles the case where the queue is full.
+     * @param filename Name of the file that couldn't be queued
+     * @return ResponseEntity with appropriate error message
+     */
+    private ResponseEntity<String> handleQueueFull(String filename) {
+        System.out.println("⚠️ Queue full - Rejecting upload: " + filename);
+        System.out.println("📊 Queue status: " + currentQueueSize.get() + "/" + maxQueueLength);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+            .body("Queue full - Please wait before uploading more videos");
+    }
+
+    /**
+     * Checks if a file already exists in the uploads directory.
+     * @param filename Name of the file to check
+     * @return true if the file exists, false otherwise
+     */
+    private boolean isFileAlreadyExists(String filename) {
+        return Files.exists(uploadDir.resolve(COMPRESSED_PREFIX + filename));
+    }
+
+    /**
+     * Handles the case where a file already exists in uploads.
+     * @param filename Name of the existing file
+     * @return ResponseEntity with appropriate message
+     */
+    private ResponseEntity<String> handleExistingFile(String filename) {
+        System.out.println("⚠️ File already exists in uploads: " + filename);
+        return ResponseEntity.ok("File already exists in uploads: " + filename);
+    }
+
+    /**
+     * Queues a file for processing.
+     * @param file The uploaded file
+     * @param uniqueFilename Unique name for the file
+     * @return ResponseEntity with success message
+     * @throws IOException if file operations fail
+     */
+    private ResponseEntity<String> queueFileForProcessing(MultipartFile file, String uniqueFilename) throws IOException {
+        Path tempFile = tempDir.resolve(uniqueFilename);
+        file.transferTo(tempFile);
+        
+        uploadQueue.offer(tempFile);
+        currentQueueSize.incrementAndGet();
+        
+        System.out.println("➕ Added to queue: " + uniqueFilename);
+        System.out.println("📊 Queue size after add: " + currentQueueSize.get() + "/" + maxQueueLength);
+
+        return ResponseEntity.ok("Queued for processing: " + uniqueFilename);
+    }
+
+    /**
+     * Handles errors during file upload.
+     * @param filename Name of the file that failed to upload
+     * @param e The exception that occurred
+     * @return ResponseEntity with error message
+     */
+    private ResponseEntity<String> handleUploadError(String filename, Exception e) {
+        System.out.println("❌ Failed to queue: " + filename);
+        System.out.println("📊 Queue size after failure: " + currentQueueSize.get() + "/" + maxQueueLength);
+        e.printStackTrace();
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Failed to queue: " + e.getMessage());
+    }
+
+    /**
+     * Logs an error message and its associated exception.
+     * @param message The error message
+     * @param e The exception that occurred
+     */
+    private void logError(String message, Exception e) {
+        System.out.println("❌ " + message + ": " + e.getMessage());
+        e.printStackTrace();
+    }
+
+    /**
+     * Lists all processed videos in the uploads directory.
+     * @return List of video filenames
+     */
     @GetMapping("/list")
     @ResponseBody
     public List<String> listVideos() {
