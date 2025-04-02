@@ -27,6 +27,7 @@ public class VideoUploadController {
     private final AtomicInteger currentQueueSize;
     private final int maxQueueLength;
     private final ExecutorService processingExecutor;
+    private final int numConsumerThreads;
 
     public VideoUploadController() {
         // Use absolute paths
@@ -44,33 +45,42 @@ public class VideoUploadController {
         this.uploadQueue = new ConcurrentLinkedQueue<>();
         this.currentQueueSize = new AtomicInteger(0);
         this.maxQueueLength = ConfigLoader.getInt("queue.length", 5);
-        this.processingExecutor = Executors.newSingleThreadExecutor();
+        this.numConsumerThreads = ConfigLoader.getInt("consumer.threads", 1);
         
-        System.out.println("🚀 Consumer initialized with max queue length: " + maxQueueLength);
-        System.out.println("📁 Upload directory: " + uploadDir);
-        System.out.println("📁 Temp directory: " + tempDir);
+        // Create thread pool with specified number of threads
+        this.processingExecutor = Executors.newFixedThreadPool(numConsumerThreads);
         
-        // Start the processing thread
-        startProcessingThread();
+        System.out.println("🚀 Consumer initialized with:");
+        System.out.println("   - Max queue length: " + maxQueueLength);
+        System.out.println("   - Number of processing threads: " + numConsumerThreads);
+        System.out.println("   - Upload directory: " + uploadDir);
+        System.out.println("   - Temp directory: " + tempDir);
+        
+        // Start multiple processing threads
+        for (int i = 0; i < numConsumerThreads; i++) {
+            final int threadId = i + 1;
+            processingExecutor.submit(() -> processQueue(threadId));
+        }
     }
 
-    private void startProcessingThread() {
-        processingExecutor.submit(() -> {
-            while (true) {
-                try {
-                    Path tempFilePath = uploadQueue.poll();
-                    if (tempFilePath != null) {
-                        processFile(tempFilePath);
-                        currentQueueSize.decrementAndGet();
-                        System.out.println("➖ Removed from queue: " + tempFilePath.getFileName());
-                        System.out.println("📊 Queue size after processing: " + currentQueueSize.get() + "/" + maxQueueLength);
-                    }
-                    Thread.sleep(1000); // Process one file per second
-                } catch (Exception e) {
-                    e.printStackTrace();
+    private void processQueue(int threadId) {
+        System.out.println("🔄 Processing thread " + threadId + " started");
+        while (true) {
+            try {
+                Path tempFilePath = uploadQueue.poll();
+                if (tempFilePath != null) {
+                    System.out.println("🎥 Thread " + threadId + " processing: " + tempFilePath.getFileName());
+                    processFile(tempFilePath);
+                    currentQueueSize.decrementAndGet();
+                    System.out.println("✅ Thread " + threadId + " completed: " + tempFilePath.getFileName());
+                    System.out.println("📊 Queue size after processing: " + currentQueueSize.get() + "/" + maxQueueLength);
                 }
+                Thread.sleep(100); // Small delay to prevent busy waiting
+            } catch (Exception e) {
+                System.out.println("❌ Error in processing thread " + threadId + ": " + e.getMessage());
+                e.printStackTrace();
             }
-        });
+        }
     }
 
     private void processFile(Path tempFilePath) throws IOException {
