@@ -1,11 +1,21 @@
 // Video playback state
 let currentPlayingVideo = null;
+let hoverTimeout = null;
+let currentVideos = new Set();
 
 async function fetchVideos() {
   try {
     const response = await fetch('/list');
     const files = await response.json();
-    displayVideos(files);
+    
+    // Check if there are any new videos
+    const newFiles = files.filter(file => !currentVideos.has(file));
+    
+    if (newFiles.length > 0) {
+      // Update current videos set
+      currentVideos = new Set(files);
+      displayVideos(files);
+    }
   } catch (error) {
     console.error('Error fetching videos:', error);
   }
@@ -32,22 +42,42 @@ function displayVideos(files) {
     
     // Handle hover preview
     video.addEventListener('mouseenter', () => {
+      // Clear any existing timeout
+      if (hoverTimeout) {
+        clearTimeout(hoverTimeout);
+      }
+      
+      // Stop any currently playing video
       if (currentPlayingVideo && currentPlayingVideo !== video) {
         currentPlayingVideo.pause();
         currentPlayingVideo.currentTime = 0;
       }
+      
       video.currentTime = 0;
       video.play();
       currentPlayingVideo = video;
       
-      // Stop after 10 seconds
-      setTimeout(() => {
+      // Set timeout to stop after 10 seconds
+      hoverTimeout = setTimeout(() => {
         if (video === currentPlayingVideo) {
           video.pause();
           video.currentTime = 0;
           currentPlayingVideo = null;
         }
       }, 10000);
+    });
+    
+    // Stop video when mouse leaves
+    video.addEventListener('mouseleave', () => {
+      if (hoverTimeout) {
+        clearTimeout(hoverTimeout);
+        hoverTimeout = null;
+      }
+      video.pause();
+      video.currentTime = 0;
+      if (currentPlayingVideo === video) {
+        currentPlayingVideo = null;
+      }
     });
     
     // Handle click to play
@@ -94,5 +124,5 @@ function displayVideos(files) {
 // Initial load
 fetchVideos();
 
-// Refresh videos every 5 seconds
+// Check for new videos every 5 seconds, but only update if there are changes
 setInterval(fetchVideos, 5000);
