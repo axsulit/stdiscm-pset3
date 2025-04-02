@@ -29,16 +29,20 @@ async function fetchVideos() {
     const response = await fetch('/list');
     const files = await response.json();
     
-    // Check if there are any new videos
-    const newFiles = files.filter(file => !currentVideos.has(file));
+    // Only update if the set of files has changed
+    const newFiles = new Set(files);
+    const hasChanged = files.length !== currentVideos.size || 
+                      files.some(file => !currentVideos.has(file)) ||
+                      Array.from(currentVideos).some(file => !newFiles.has(file));
     
-    if (newFiles.length > 0) {
-      // Update current videos set
-      currentVideos = new Set(files);
+    if (hasChanged) {
+      currentVideos = newFiles;
       displayVideos(files);
     }
   } catch (error) {
     console.error('Error fetching videos:', error);
+    // Show empty state on error
+    displayVideos([]);
   }
 }
 
