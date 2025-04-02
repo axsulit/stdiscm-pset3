@@ -140,9 +140,10 @@ public class VideoUploadController {
 
             // Check if queue is full
             if (currentQueueSize.get() >= maxQueueLength) {
-                System.out.println("⚠️ Queue full - Dropping video: " + file.getOriginalFilename());
+                System.out.println("⚠️ Queue full - Rejecting upload: " + file.getOriginalFilename());
                 System.out.println("📊 Queue status: " + currentQueueSize.get() + "/" + maxQueueLength);
-                return ResponseEntity.ok("Video dropped - Queue full");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body("Queue full - Please wait before uploading more videos");
             }
 
             // Save to temp directory first
