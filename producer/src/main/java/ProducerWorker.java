@@ -8,6 +8,7 @@ public class ProducerWorker implements Runnable {
 
     public ProducerWorker(File folder) {
         this.folder = folder;
+        System.out.println("🚀 Producer worker initialized for folder: " + folder.getAbsolutePath());
     }
 
     @Override
@@ -19,10 +20,13 @@ public class ProducerWorker implements Runnable {
             return;
         }
 
+        System.out.println("📂 Found " + files.length + " files in folder: " + folder.getName());
+
         for (File videoFile : files) {
             if (!videoFile.isFile()) continue;
 
             try {
+                System.out.println("\n📤 Attempting to upload: " + videoFile.getName());
                 uploadFile(videoFile);
             } catch (IOException e) {
                 System.out.println("❌ Failed to upload " + videoFile.getName() + ": " + e.getMessage());
@@ -38,6 +42,8 @@ public class ProducerWorker implements Runnable {
         String consumerUrl = (environment != null && environment.equals("docker")) 
             ? "http://consumer:8080/upload" 
             : "http://localhost:8080/upload";
+        
+        System.out.println("🌐 Uploading to: " + consumerUrl);
         
         URL url = new URL(consumerUrl);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
