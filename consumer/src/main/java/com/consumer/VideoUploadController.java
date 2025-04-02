@@ -18,6 +18,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Controller class that handles video uploads and processing in a producer-consumer system.
+ * This class manages a queue of video files, processes them using FFmpeg for compression,
+ * and stores the results in an uploads directory.
+ */
 @RestController
 public class VideoUploadController {
     // Constants for file handling and processing
