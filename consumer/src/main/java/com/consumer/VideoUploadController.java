@@ -74,9 +74,47 @@ public class VideoUploadController {
     }
 
     private void processFile(Path tempFilePath) throws IOException {
-        Path dest = uploadDir.resolve(tempFilePath.getFileName());
-        Files.move(tempFilePath, dest);
-        System.out.println("✅ Processed: " + dest);
+        String originalFilename = tempFilePath.getFileName().toString();
+        String compressedFilename = "compressed_" + originalFilename;
+        Path compressedPath = tempDir.resolve(compressedFilename);
+        Path finalPath = uploadDir.resolve(compressedFilename);
+
+        try {
+            // Compress the video using FFmpeg
+            System.out.println("🎥 Compressing video: " + originalFilename);
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                "ffmpeg", "-i", tempFilePath.toString(),
+                "-c:v", "libx264",        // Use H.264 codec
+                "-crf", "28",             // Constant Rate Factor (18-28 is good, lower = better quality)
+                "-preset", "slow",      // Encoding speed preset
+                "-c:a", "aac",            // Audio codec
+                "-b:a", "96k",           // Audio bitrate
+                "-vf", "scale=1280:-2",  // Scale video to 1280px width, keep aspect ratio
+                "-y",                     // Overwrite output file if exists
+                compressedPath.toString()
+            );
+
+            Process process = processBuilder.start();
+            int exitCode = process.waitFor();
+
+            if (exitCode == 0) {
+                System.out.println("✅ Video compressed successfully: " + originalFilename);
+                // Move the compressed file to uploads directory
+                Files.move(compressedPath, finalPath);
+                System.out.println("✅ Moved compressed video to: " + finalPath);
+            } else {
+                System.out.println("❌ Video compression failed for: " + originalFilename);
+                // If compression fails, move the original file
+                Files.move(tempFilePath, finalPath);
+                System.out.println("✅ Moved original video to: " + finalPath);
+            }
+        } catch (Exception e) {
+            System.out.println("❌ Error processing video: " + originalFilename);
+            e.printStackTrace();
+            // If any error occurs, move the original file
+            Files.move(tempFilePath, finalPath);
+            System.out.println("✅ Moved original video to: " + finalPath);
+        }
     }
 
     @PostMapping("/upload")
@@ -86,7 +124,7 @@ public class VideoUploadController {
         
         try {
             // Check for duplicate file in uploads directory
-            Path existingFile = uploadDir.resolve(file.getOriginalFilename());
+            Path existingFile = uploadDir.resolve("compressed_" + file.getOriginalFilename());
             if (Files.exists(existingFile)) {
                 System.out.println("⚠️ Duplicate file detected: " + file.getOriginalFilename());
                 return ResponseEntity.ok("Video dropped - Duplicate file");

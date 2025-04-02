@@ -11,4 +11,11 @@ WORKDIR /app
 COPY --from=builder /app/consumer/build/libs/*.jar app.jar
 VOLUME /uploads
 EXPOSE 8080
+
+# Install FFmpeg
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 ENTRYPOINT ["java", "-jar", "app.jar"]
