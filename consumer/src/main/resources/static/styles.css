@@ -79,3 +79,22 @@ video:focus {
   align-items: center;
   justify-content: center;
 }
+
+/* Error state */
+.video-container.error {
+  position: relative;
+}
+
+.video-container.error::after {
+  content: '❌ Video not found';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ff4444;
+  font-size: 14px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 16px;
+  border-radius: 4px;
+}

@@ -20,7 +20,7 @@ function displayVideos(files) {
     div.className = 'video-container';
     
     const video = document.createElement('video');
-    video.src = '/' + file;
+    video.src = `/${file}`;
     video.controls = false;
     video.muted = true;
     video.preload = 'metadata';
@@ -77,6 +77,12 @@ function displayVideos(files) {
     
     video.addEventListener('canplay', () => {
       div.classList.remove('loading');
+    });
+    
+    // Handle video errors
+    video.addEventListener('error', (e) => {
+      console.error('Error loading video:', file, e);
+      div.classList.add('error');
     });
     
     div.appendChild(video);
