@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import com.shared.config.ConfigLoader;
 
 public class ProducerWorker implements Runnable {
     private final File folder;
@@ -33,8 +34,12 @@ public class ProducerWorker implements Runnable {
         String boundary = "===" + System.currentTimeMillis() + "===";
         String LINE_FEED = "\r\n";
 
-        URL url = new URL("http://localhost:8080/upload");
-        //URL url = new URL("http://consumer:8080/upload");
+        String environment = ConfigLoader.get("environment");
+        String consumerUrl = (environment != null && environment.equals("docker")) 
+            ? "http://consumer:8080/upload" 
+            : "http://localhost:8080/upload";
+        
+        URL url = new URL(consumerUrl);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setUseCaches(false);
         conn.setDoOutput(true); // sends POST
