@@ -1,26 +1,53 @@
+:root {
+  --primary-green: #2e7d32;
+  --light-green: #4caf50;
+  --dark-green: #1b5e20;
+  --accent-green: #81c784;
+  --background-green: #e8f5e9;
+  --text-dark: #1a1a1a;
+  --text-light: #ffffff;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   margin: 0;
-  padding: 20px;
-  background-color: #f5f5f5;
+  padding: 0;
+  background-color: var(--background-green);
+  color: var(--text-dark);
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 20px;
 }
 
-h1 {
-  color: #333;
-  margin-bottom: 30px;
-  text-align: center;
+/* Header styles */
+.site-header {
+  background-color: var(--primary-green);
+  color: var(--text-light);
+  padding: 2rem 0;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.site-header h1 {
+  margin: 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.site-header .subtitle {
+  margin: 0.5rem 0 0;
+  font-size: 1.1rem;
+  opacity: 0.9;
 }
 
 .video-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
-  padding: 20px;
+  padding: 20px 0;
 }
 
 .video-container {
@@ -28,12 +55,14 @@ h1 {
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   overflow: hidden;
-  transition: transform 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1px solid var(--accent-green);
 }
 
 .video-container:hover {
   transform: translateY(-5px);
   box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  border-color: var(--primary-green);
 }
 
 .video-container video {
@@ -46,11 +75,12 @@ h1 {
 .video-container .video-title {
   padding: 10px;
   font-size: 14px;
-  color: #666;
+  color: var(--text-dark);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  background-color: var(--background-green);
 }
 
 /* Video player styles */
@@ -116,32 +146,64 @@ video:focus {
   position: relative;
   background-color: #000;
   margin: 5% auto;
-  padding: 20px;
+  padding: 0;
   width: 90%;
   max-width: 1000px;
   border-radius: 8px;
+  border: 2px solid var(--primary-green);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  background-color: var(--primary-green);
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--accent-green);
+  flex-shrink: 0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--text-light);
+  font-size: 1.2rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-grow: 1;
+  padding-right: 20px;
 }
 
 .modal-content video {
   width: 100%;
   height: auto;
-  max-height: 80vh;
+  max-height: calc(80vh - 60px); /* Account for header height */
   display: block;
+  padding: 20px;
+  box-sizing: border-box;
+  object-fit: contain;
+  background: #000;
 }
 
 .close {
-  position: absolute;
-  right: 25px;
-  top: 10px;
-  color: #f1f1f1;
-  font-size: 40px;
+  position: relative;
+  right: 0;
+  top: 0;
+  color: var(--text-light);
+  font-size: 28px;
   font-weight: bold;
   cursor: pointer;
-  z-index: 1001;
+  transition: color 0.2s;
+  padding: 0 5px;
+  flex-shrink: 0;
 }
 
 .close:hover {
-  color: #bbb;
+  color: var(--accent-green);
 }
 
 /* Animation for modal */
@@ -155,5 +217,67 @@ video:focus {
   }
   to {
     opacity: 1;
+  }
+}
+
+/* Notification styles */
+#notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  max-width: 400px;
+}
+
+.notification {
+  background-color: var(--light-green);
+  color: var(--text-light);
+  padding: 12px 20px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification .icon {
+  margin-right: 10px;
+  font-size: 18px;
+}
+
+.notification .message {
+  flex-grow: 1;
+}
+
+.notification .close-btn {
+  margin-left: 10px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.notification .close-btn:hover {
+  opacity: 1;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
   }
 }

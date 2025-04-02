@@ -113,6 +113,9 @@ function displayVideos(files) {
       modalVideo.src = video.src;
       modalVideo.muted = false;
       
+      // Set modal title
+      document.getElementById('modalTitle').textContent = file;
+      
       // Show modal and play video
       modal.style.display = "block";
       modal.classList.add('fade-in');
