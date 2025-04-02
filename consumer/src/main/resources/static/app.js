@@ -3,6 +3,27 @@ let currentPlayingVideo = null;
 let hoverTimeout = null;
 let currentVideos = new Set();
 
+// Modal elements
+const modal = document.getElementById('videoModal');
+const modalVideo = document.getElementById('modalVideo');
+const closeBtn = document.querySelector('.close');
+
+// Close modal when clicking the close button
+closeBtn.onclick = function() {
+  modalVideo.pause();
+  modalVideo.currentTime = 0;
+  modal.style.display = "none";
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  if (event.target == modal) {
+    modalVideo.pause();
+    modalVideo.currentTime = 0;
+    modal.style.display = "none";
+  }
+}
+
 async function fetchVideos() {
   try {
     const response = await fetch('/list');
@@ -80,23 +101,27 @@ function displayVideos(files) {
       }
     });
     
-    // Handle click to play
+    // Handle click to play in modal
     video.addEventListener('click', () => {
+      // Stop any currently playing video
       if (currentPlayingVideo && currentPlayingVideo !== video) {
         currentPlayingVideo.pause();
         currentPlayingVideo.currentTime = 0;
       }
       
-      video.controls = true;
-      video.muted = false;
-      video.play();
-      currentPlayingVideo = video;
+      // Set up modal video
+      modalVideo.src = video.src;
+      modalVideo.muted = false;
+      
+      // Show modal and play video
+      modal.style.display = "block";
+      modal.classList.add('fade-in');
+      modalVideo.play();
       
       // Reset when video ends
-      video.addEventListener('ended', () => {
-        video.controls = false;
-        video.muted = true;
-        currentPlayingVideo = null;
+      modalVideo.addEventListener('ended', () => {
+        modalVideo.currentTime = 0;
+        modalVideo.muted = true;
       }, { once: true });
     });
     

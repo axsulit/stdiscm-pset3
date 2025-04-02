@@ -98,3 +98,62 @@ video:focus {
   padding: 8px 16px;
   border-radius: 4px;
 }
+
+/* Modal styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.9);
+  overflow: auto;
+}
+
+.modal-content {
+  position: relative;
+  background-color: #000;
+  margin: 5% auto;
+  padding: 20px;
+  width: 90%;
+  max-width: 1000px;
+  border-radius: 8px;
+}
+
+.modal-content video {
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  display: block;
+}
+
+.close {
+  position: absolute;
+  right: 25px;
+  top: 10px;
+  color: #f1f1f1;
+  font-size: 40px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+.close:hover {
+  color: #bbb;
+}
+
+/* Animation for modal */
+.modal.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
