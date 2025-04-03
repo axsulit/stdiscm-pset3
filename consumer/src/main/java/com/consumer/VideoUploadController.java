@@ -7,16 +7,21 @@ import com.shared.config.ConfigLoader;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.AtomicMoveNotSupportedException;
 
 /**
  * Controller class that handles video uploads and processing in a producer-consumer system.
@@ -26,20 +31,21 @@ import java.util.concurrent.Executors;
 @RestController
 public class VideoUploadController {
     // Constants for file handling and processing
-    // private static final String COMPRESSED_PREFIX = "compressed_";  // Prefix for compressed video files
     private static final String UPLOADS_DIR = "uploads";           // Directory for final processed videos
     private static final String TEMP_DIR = "temp";                 // Directory for temporary files
     private static final int QUEUE_POLL_DELAY_MS = 100;           // Delay between queue polling attempts
     private static final String FFMPEG_COMMAND = "ffmpeg";         // FFmpeg command for video processing
     private static final String[] FFMPEG_ARGS = {
-        "-c:v", "libx264",    // Video codec
-        "-crf", "28",         // Quality setting (18-28 is good, lower = better quality)
-        "-preset", "slow",    // Encoding speed preset
-        "-c:a", "aac",        // Audio codec
-        "-b:a", "96k",        // Audio bitrate
-        "-vf", "scale=1280:-2", // Scale video to 1280px width, keep aspect ratio
-        "-y"                  // Overwrite output file if exists
+        "-c:v", "libx264",        // H.264 video codec 
+        "-crf", "32",             // Higher value = lower quality, smaller file size
+        "-preset", "faster",      // Encoding speed preset
+        "-r", "24",               // Output frame rate
+        "-c:a", "aac",            // AAC audio codec 
+        "-b:a", "64k",            // Audio bitrate
+        "-vf", "scale=640:-2",    // Scale video width to 640px, maintain aspect ratio
+        "-y"                      // Overwrite output file if it exists
     };
+};
 
     // Instance variables for managing the video processing system
     private final Path uploadDir;                    // Directory for processed videos
@@ -127,6 +133,16 @@ public class VideoUploadController {
     }
 
     /**
+     * Sanitizes a filename by replacing invalid characters with underscores.
+     * @param filename The original filename
+     * @return A sanitized filename safe for filesystem operations
+     */
+    private String sanitizeFilename(String filename) {
+        // Replace problematic characters with underscores
+        return filename.replaceAll("[\\\\/:*?\"<>|\\s]", "_");
+    }
+
+    /**
      * Processes a single video file, including compression and moving to final location.
      * @param tempFilePath Path to the temporary video file
      * @param threadId ID of the processing thread
@@ -134,20 +150,28 @@ public class VideoUploadController {
      */
     private void processVideoFile(Path tempFilePath, int threadId) throws IOException {
         String originalFilename = tempFilePath.getFileName().toString();
+        String sanitizedFilename = sanitizeFilename(originalFilename);
         System.out.println("🎥 Thread " + threadId + " processing: " + originalFilename);
         
-        // Use original filename without prefix
-        Path compressedPath = tempDir.resolve(originalFilename);
-        Path finalPath = uploadDir.resolve(originalFilename);
+        // Use sanitized filename for all file operations
+        Path compressedPath = tempDir.resolve(sanitizedFilename);
+        Path finalPath = uploadDir.resolve(sanitizedFilename);
 
         try {
             if (handleExistingFile(finalPath, tempFilePath, originalFilename)) {
                 return;
             }
 
+            // If the original file has special characters, rename it first
+            if (!originalFilename.equals(sanitizedFilename)) {
+                Path sanitizedTempPath = tempDir.resolve(sanitizedFilename);
+                Files.move(tempFilePath, sanitizedTempPath, StandardCopyOption.REPLACE_EXISTING);
+                tempFilePath = sanitizedTempPath;
+            }
+
             boolean compressionSuccess = false;
             try {
-                compressionSuccess = compressVideo(tempFilePath, compressedPath, originalFilename);
+                compressionSuccess = compressVideo(tempFilePath, compressedPath, sanitizedFilename);
             } catch (InterruptedException e) {
                 System.out.println("⚠️ Video compression interrupted for: " + originalFilename);
                 Thread.currentThread().interrupt();
@@ -155,11 +179,21 @@ public class VideoUploadController {
 
             if (compressionSuccess) {
                 moveFile(compressedPath, finalPath, "compressed");
+                // Only delete the temp file after successful move
+                cleanupTempFiles(tempFilePath);
             } else {
                 moveFile(tempFilePath, finalPath, "original");
             }
-        } finally {
-            cleanupTempFiles(tempFilePath, compressedPath);
+        } catch (Exception e) {
+            // Clean up on error, but log the cleanup result
+            System.out.println("❌ Error processing file: " + originalFilename);
+            e.printStackTrace();
+            try {
+                cleanupTempFiles(tempFilePath, compressedPath);
+            } catch (Exception cleanupError) {
+                System.out.println("⚠️ Error during cleanup: " + cleanupError.getMessage());
+            }
+            throw e;
         }
     }
 
@@ -190,17 +224,65 @@ public class VideoUploadController {
      * @throws InterruptedException if the compression process is interrupted
      */
     private boolean compressVideo(Path inputPath, Path outputPath, String filename) throws IOException, InterruptedException {
-        System.out.println("🎥 Compressing video: " + filename);
-        
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.command(FFMPEG_COMMAND, "-i", inputPath.toString());
-        processBuilder.command().addAll(Arrays.asList(FFMPEG_ARGS));
-        processBuilder.command().add(outputPath.toString());
+        if (!Files.exists(inputPath)) {
+            System.out.println("❌ Input file does not exist: " + inputPath);
+            return false;
+        }
 
-        Process process = processBuilder.start();
-        int exitCode = process.waitFor();
-        
-        return exitCode == 0;
+        System.out.println("🎥 Compressing video: " + filename);
+        System.out.println("📁 Input path: " + inputPath);
+
+        // Create a temporary file path for the compressed video with timestamp to ensure uniqueness
+        Path tempOutputPath = tempDir.resolve("temp_compressed_" + System.currentTimeMillis() + "_" + filename);
+        System.out.println("📁 Temporary output path: " + tempOutputPath);
+
+        // Build ffmpeg command
+        List<String> command = new ArrayList<>();
+        command.add(FFMPEG_COMMAND);
+        command.add("-i");
+        command.add(inputPath.toString());
+        command.addAll(Arrays.asList(FFMPEG_ARGS));
+        command.add(tempOutputPath.toString());
+
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+
+        try {
+            Process process = processBuilder.start();
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println("[FFmpeg] " + line);
+                }
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode == 0) {
+                // Ensure the destination doesn't exist before moving
+                Files.deleteIfExists(outputPath);
+                
+                // Use atomic move operation
+                try {
+                    Files.move(tempOutputPath, outputPath, StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException e) {
+                    // Fallback to regular move if atomic move is not supported
+                    Files.move(tempOutputPath, outputPath, StandardCopyOption.REPLACE_EXISTING);
+                }
+                
+                System.out.println("✅ Compression successful for: " + filename);
+                return true;
+            } else {
+                System.out.println("❌ FFmpeg exited with code " + exitCode + " for: " + filename);
+                Files.deleteIfExists(tempOutputPath); // Clean up temp file if compression failed
+                return false;
+            }
+        } catch (IOException | InterruptedException e) {
+            System.out.println("❌ Exception during compression of: " + filename);
+            Files.deleteIfExists(tempOutputPath); // Clean up temp file on exception
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     /**
@@ -211,7 +293,22 @@ public class VideoUploadController {
      * @throws IOException if the move operation fails
      */
     private void moveFile(Path source, Path destination, String type) throws IOException {
-        Files.move(source, destination);
+        if (!Files.exists(source)) {
+            throw new IOException("Source file does not exist: " + source);
+        }
+        
+        // Ensure parent directory exists
+        Files.createDirectories(destination.getParent());
+        
+        // Delete destination if it exists
+        Files.deleteIfExists(destination);
+        
+        // Move the file
+        try {
+            Files.move(source, destination, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(source, destination, StandardCopyOption.REPLACE_EXISTING);
+        }
         System.out.println("✅ Moved " + type + " video to: " + destination);
     }
 
@@ -352,7 +449,8 @@ public class VideoUploadController {
      * @throws IOException if file operations fail
      */
     private ResponseEntity<String> queueFileForProcessing(MultipartFile file, String uniqueFilename) throws IOException {
-        Path tempFile = tempDir.resolve(uniqueFilename);
+        String sanitizedFilename = sanitizeFilename(uniqueFilename);
+        Path tempFile = tempDir.resolve(sanitizedFilename);
         file.transferTo(tempFile);
         
         uploadQueue.offer(tempFile);
