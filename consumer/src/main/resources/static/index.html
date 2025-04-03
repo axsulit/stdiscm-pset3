@@ -1,39 +1,48 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>GreenQueue - Video Processing</title>
-  <link rel="stylesheet" href="/styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="GreenQueue - Video Processing Service">
+    <title>GreenQueue - Video Processing</title>
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header class="site-header">
-    <div class="container">
-      <h1>GreenQueue</h1>
-      <p class="subtitle">Queue it. Compress it. Preview it.</p>
-    </div>
-  </header>
-  <main class="container">
-    <div class="video-grid" id="videos">
-      <div class="empty-queue">
-        <div class="empty-queue-content">
-          <div class="empty-queue-icon">🌱</div>
-          <h2>Your queue is green and ready</h2>
-          <p>Upload a video to get started</p>
+    <!-- Main Header -->
+    <header class="site-header">
+        <div class="container">
+            <h1>GreenQueue</h1>
+            <p class="subtitle">Queue it. Compress it. Preview it.</p>
         </div>
-      </div>
-    </div>
-  </main>
-  
-  <!-- Video Modal -->
-  <div id="videoModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 id="modalTitle"></h2>
-        <span class="close">&times;</span>
-      </div>
-      <video id="modalVideo" controls></video>
-    </div>
-  </div>
+    </header>
 
-  <script src="/app.js"></script>
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Video Grid Container -->
+        <div class="video-grid" id="videos">
+            <!-- Empty State Placeholder -->
+            <div class="empty-queue">
+                <div class="empty-queue-content">
+                    <div class="empty-queue-icon">🌱</div>
+                    <h2>Your queue is green and ready</h2>
+                    <p>Upload a video to get started</p>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Video Modal -->
+    <div id="videoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle"></h2>
+                <span class="close">&times;</span>
+            </div>
+            <video id="modalVideo" controls></video>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="/app.js"></script>
 </body>
 </html>
