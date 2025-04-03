@@ -1,5 +1,7 @@
 # GreenQueue - Video Processing Service
 
+![GreenQueue UI](sample.png)
+
 A producer-consumer exercise demonstrating concurrent programming, file I/O, queueing, and network communication. This project simulates a media upload service with video compression capabilities.
 
 ## Features
