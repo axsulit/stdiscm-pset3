@@ -48,21 +48,34 @@ async function fetchVideos() {
 
 function displayVideos(files) {
   const container = document.getElementById('videos');
-  container.innerHTML = '';
-
+  
+  // If there are no files, ensure the placeholder is shown
   if (files.length === 0) {
-    const placeholder = document.createElement('div');
-    placeholder.className = 'empty-queue';
-    placeholder.innerHTML = `
-      <div class="empty-queue-content">
-        <div class="empty-queue-icon">🌱</div>
-        <h2>Your queue is green and ready</h2>
-        <p>Upload a video to get started</p>
-      </div>
-    `;
-    container.appendChild(placeholder);
+    // Only add placeholder if it doesn't exist
+    if (!container.querySelector('.empty-queue')) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'empty-queue';
+      placeholder.innerHTML = `
+        <div class="empty-queue-content">
+          <div class="empty-queue-icon">🌱</div>
+          <h2>Your queue is green and ready</h2>
+          <p>Upload a video to get started</p>
+        </div>
+      `;
+      container.appendChild(placeholder);
+    }
     return;
   }
+
+  // If there are files, remove the placeholder if it exists
+  const placeholder = container.querySelector('.empty-queue');
+  if (placeholder) {
+    placeholder.remove();
+  }
+
+  // Clear any existing video containers
+  const videoContainers = container.querySelectorAll('.video-container');
+  videoContainers.forEach(container => container.remove());
 
   files.forEach(file => {
     const div = document.createElement('div');
