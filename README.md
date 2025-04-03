@@ -41,6 +41,13 @@ queue.length=4                  # Maximum queue size
 environment=local              # Environment (local/docker)
 ```
 
+## Sample Videos
+
+Sample videos can be downloaded from [this Google Drive link](https://drive.google.com/file/d/1X1sYJudX0-CtuEzKRzutQ0I_KlupHJ0D/view?usp=sharing). After downloading:
+
+1. Extract the downloaded file
+2. Move the extracted folders to your configured video path (specified by `producer.rootvideopath` in config.properties)
+
 ## Building and Running
 
 ### Local Development
