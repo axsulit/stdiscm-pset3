@@ -45,7 +45,6 @@ public class VideoUploadController {
         "-vf", "scale=640:-2",    // Scale video width to 640px, maintain aspect ratio
         "-y"                      // Overwrite output file if it exists
     };
-};
 
     // Instance variables for managing the video processing system
     private final Path uploadDir;                    // Directory for processed videos
@@ -158,10 +157,6 @@ public class VideoUploadController {
         Path finalPath = uploadDir.resolve(sanitizedFilename);
 
         try {
-            if (handleExistingFile(finalPath, tempFilePath, originalFilename)) {
-                return;
-            }
-
             // If the original file has special characters, rename it first
             if (!originalFilename.equals(sanitizedFilename)) {
                 Path sanitizedTempPath = tempDir.resolve(sanitizedFilename);
@@ -195,23 +190,6 @@ public class VideoUploadController {
             }
             throw e;
         }
-    }
-
-    /**
-     * Handles the case where a file already exists in the uploads directory.
-     * @param finalPath Path where the file would be stored
-     * @param tempFilePath Path to the temporary file
-     * @param originalFilename Original name of the file
-     * @return true if file exists and was handled, false otherwise
-     * @throws IOException if file operations fail
-     */
-    private boolean handleExistingFile(Path finalPath, Path tempFilePath, String originalFilename) throws IOException {
-        if (Files.exists(finalPath)) {
-            System.out.println("⚠️ File already exists in uploads: " + originalFilename);
-            Files.deleteIfExists(tempFilePath);
-            return true;
-        }
-        return false;
     }
 
     /**
@@ -300,8 +278,27 @@ public class VideoUploadController {
         // Ensure parent directory exists
         Files.createDirectories(destination.getParent());
         
-        // Delete destination if it exists
-        Files.deleteIfExists(destination);
+        // If destination exists, generate a new unique name
+        if (Files.exists(destination)) {
+            String filename = destination.getFileName().toString();
+            String baseName = filename;
+            String extension = "";
+            int dotIndex = filename.lastIndexOf('.');
+            
+            if (dotIndex > 0) {
+                baseName = filename.substring(0, dotIndex);
+                extension = filename.substring(dotIndex);
+            }
+
+            int copyNumber = 1;
+            Path newDestination;
+            do {
+                newDestination = destination.getParent().resolve(baseName + "_" + copyNumber + extension);
+                copyNumber++;
+            } while (Files.exists(newDestination));
+            
+            destination = newDestination;
+        }
         
         // Move the file
         try {
@@ -327,9 +324,9 @@ public class VideoUploadController {
     }
 
     /**
-     * Generates a unique filename to avoid conflicts.
+     * Generates a unique filename by appending a number if the file already exists.
      * @param originalFilename Original name of the file
-     * @return A unique filename
+     * @return A unique filename with _1, _2, etc. appended if necessary
      */
     private String generateUniqueFilename(String originalFilename) {
         String baseName = originalFilename;
@@ -341,36 +338,19 @@ public class VideoUploadController {
             extension = originalFilename.substring(dotIndex);
         }
 
-        int copyNumber = 1;
         String newFilename = originalFilename;
+        int copyNumber = 0;
         
-        while (isFilenameTaken(newFilename)) {
+        while (Files.exists(uploadDir.resolve(sanitizeFilename(newFilename)))) {
             copyNumber++;
             newFilename = baseName + "_" + copyNumber + extension;
         }
-
-        if (copyNumber > 1) {
-            System.out.println("📝 Renaming duplicate file: " + originalFilename + " → " + newFilename);
+        
+        if (copyNumber > 0) {
+            System.out.println("📝 Creating numbered copy: " + originalFilename + " → " + newFilename);
         }
         
         return newFilename;
-    }
-
-    /**
-     * Checks if a filename is already in use in the uploads directory or queue.
-     * @param filename The filename to check
-     * @return true if the filename is taken, false otherwise
-     */
-    private boolean isFilenameTaken(String filename) {
-        // Check uploads directory without prefix
-        if (Files.exists(uploadDir.resolve(filename))) {
-            return true;
-        }
-
-        // Check queue
-        final String currentFilename = filename;
-        return uploadQueue.stream()
-            .anyMatch(path -> path.getFileName().toString().equals(currentFilename));
     }
 
     /**
@@ -389,10 +369,6 @@ public class VideoUploadController {
             
             if (isQueueFull()) {
                 return handleQueueFull(uniqueFilename);
-            }
-
-            if (isFileAlreadyExists(uniqueFilename)) {
-                return handleExistingFile(uniqueFilename);
             }
 
             return queueFileForProcessing(file, uniqueFilename);
@@ -419,26 +395,6 @@ public class VideoUploadController {
         System.out.println("📊 Queue status: " + currentQueueSize.get() + "/" + maxQueueLength);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
             .body("Queue full - Please wait before uploading more videos");
-    }
-
-    /**
-     * Checks if a file already exists in the uploads directory.
-     * @param filename Name of the file to check
-     * @return true if the file exists, false otherwise
-     */
-    private boolean isFileAlreadyExists(String filename) {
-        // Check without prefix
-        return Files.exists(uploadDir.resolve(filename));
-    }
-
-    /**
-     * Handles the case where a file already exists in uploads.
-     * @param filename Name of the existing file
-     * @return ResponseEntity with appropriate message
-     */
-    private ResponseEntity<String> handleExistingFile(String filename) {
-        System.out.println("⚠️ File already exists in uploads: " + filename);
-        return ResponseEntity.ok("File already exists in uploads: " + filename);
     }
 
     /**
