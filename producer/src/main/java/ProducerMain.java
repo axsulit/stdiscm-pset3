@@ -3,6 +3,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Arrays;
 import com.shared.config.ConfigLoader;
 
 /**
@@ -17,6 +19,9 @@ public class ProducerMain {
     private static final int RETRY_DELAY_MS = 5000;     // Delay between retry attempts in milliseconds
     private static final int CONNECTION_TIMEOUT_MS = 5000; // Timeout for HTTP connections
     private static final String FOLDER_PREFIX = "folder"; // Prefix for video source folders
+    
+    // Shared queue for all folders to be processed
+    private static final ConcurrentLinkedQueue<File> folderQueue = new ConcurrentLinkedQueue<>();
 
     /**
      * Main entry point for the producer application.
@@ -26,11 +31,35 @@ public class ProducerMain {
     public static void main(String[] args) {
         try {
             waitForConsumer();
+            initializeFolderQueue();
             startProducerThreads();
         } catch (Exception e) {
             System.out.println("❌ Failed to start producer: " + e.getMessage());
             System.exit(1);
         }
+    }
+
+    /**
+     * Initializes the queue with all available video folders.
+     */
+    private static void initializeFolderQueue() {
+        String basePath = ConfigLoader.get("producer.rootvideopath");
+        File baseDir = new File(basePath);
+        
+        // List all directories in the base path
+        File[] folders = baseDir.listFiles(File::isDirectory);
+        if (folders != null) {
+            // Sort folders to ensure consistent order
+            Arrays.sort(folders);
+            for (File folder : folders) {
+                if (isValidFolder(folder)) {
+                    folderQueue.offer(folder);
+                    System.out.println("📁 Added to queue: " + folder.getName());
+                }
+            }
+        }
+        
+        System.out.println("📊 Total folders queued: " + folderQueue.size());
     }
 
     /**
@@ -93,34 +122,36 @@ public class ProducerMain {
 
     /**
      * Starts the producer threads based on configuration.
-     * Creates a thread pool and submits producer workers for each valid video folder.
+     * Creates a thread pool and submits producer workers that will process folders from the queue.
      */
     private static void startProducerThreads() {
         int threadCount = ConfigLoader.getInt("producer.threads", 1);
-        String basePath = ConfigLoader.get("producer.rootvideopath");
-
-        System.out.println("🔼 Starting producer with " + threadCount + " threads");
-        System.out.println("📁 Base video folder: " + basePath);
+        System.out.println("🔼 Starting " + threadCount + " producer threads for " + folderQueue.size() + " folders");
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        submitProducerWorkers(executor, basePath, threadCount);
-        executor.shutdown();
+        
+        // Submit workers that will keep processing folders from the queue
+        for (int i = 1; i <= threadCount; i++) {
+            final int threadId = i;
+            executor.submit(() -> processNextFolder(threadId));
+        }
     }
 
     /**
-     * Submits producer workers to the executor service for each valid video folder.
-     * @param executor The executor service to submit workers to
-     * @param basePath The base path containing video folders
-     * @param threadCount The number of threads to create
+     * Continuously processes folders from the queue until it's empty.
+     * @param threadId The ID of the producer thread
      */
-    private static void submitProducerWorkers(ExecutorService executor, String basePath, int threadCount) {
-        System.out.println("🧭 Looking for video folders inside: " + new File(basePath).getAbsolutePath());
-
-        for (int i = 1; i <= threadCount; i++) {
-            File folder = new File(basePath + "/" + FOLDER_PREFIX + i);
-            if (isValidFolder(folder)) {
-                executor.submit(new ProducerWorker(folder));
+    private static void processNextFolder(int threadId) {
+        while (true) {
+            File folder = folderQueue.poll();
+            if (folder == null) {
+                System.out.println("✅ Thread " + threadId + " finished - no more folders to process");
+                break;
             }
+            
+            System.out.println("🔄 Thread " + threadId + " processing folder: " + folder.getName());
+            new ProducerWorker(folder).run();
+            System.out.println("✅ Thread " + threadId + " completed folder: " + folder.getName());
         }
     }
 
@@ -131,7 +162,7 @@ public class ProducerMain {
      */
     private static boolean isValidFolder(File folder) {
         if (!folder.exists() || !folder.isDirectory()) {
-            System.out.println("⚠️ Skipping missing folder: " + folder.getAbsolutePath());
+            System.out.println("⚠️ Skipping invalid folder: " + folder.getAbsolutePath());
             return false;
         }
         return true;
