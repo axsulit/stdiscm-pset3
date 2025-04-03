@@ -26,7 +26,7 @@ import java.util.concurrent.Executors;
 @RestController
 public class VideoUploadController {
     // Constants for file handling and processing
-    private static final String COMPRESSED_PREFIX = "compressed_";  // Prefix for compressed video files
+    // private static final String COMPRESSED_PREFIX = "compressed_";  // Prefix for compressed video files
     private static final String UPLOADS_DIR = "uploads";           // Directory for final processed videos
     private static final String TEMP_DIR = "temp";                 // Directory for temporary files
     private static final int QUEUE_POLL_DELAY_MS = 100;           // Delay between queue polling attempts
@@ -136,9 +136,9 @@ public class VideoUploadController {
         String originalFilename = tempFilePath.getFileName().toString();
         System.out.println("🎥 Thread " + threadId + " processing: " + originalFilename);
         
-        String compressedFilename = COMPRESSED_PREFIX + originalFilename;
-        Path compressedPath = tempDir.resolve(compressedFilename);
-        Path finalPath = uploadDir.resolve(compressedFilename);
+        // Use original filename without prefix
+        Path compressedPath = tempDir.resolve(originalFilename);
+        Path finalPath = uploadDir.resolve(originalFilename);
 
         try {
             if (handleExistingFile(finalPath, tempFilePath, originalFilename)) {
@@ -265,8 +265,8 @@ public class VideoUploadController {
      * @return true if the filename is taken, false otherwise
      */
     private boolean isFilenameTaken(String filename) {
-        // Check uploads directory
-        if (Files.exists(uploadDir.resolve(COMPRESSED_PREFIX + filename))) {
+        // Check uploads directory without prefix
+        if (Files.exists(uploadDir.resolve(filename))) {
             return true;
         }
 
@@ -330,7 +330,8 @@ public class VideoUploadController {
      * @return true if the file exists, false otherwise
      */
     private boolean isFileAlreadyExists(String filename) {
-        return Files.exists(uploadDir.resolve(COMPRESSED_PREFIX + filename));
+        // Check without prefix
+        return Files.exists(uploadDir.resolve(filename));
     }
 
     /**
