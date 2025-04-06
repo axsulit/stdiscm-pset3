@@ -60,18 +60,26 @@ public class VideoUploadController {
      * Sets up the queue system and starts the processing threads.
      */
     public VideoUploadController() {
-        this.uploadDir = initializeDirectory(UPLOADS_DIR);
-        this.tempDir = initializeDirectory(TEMP_DIR);
-        
-        this.uploadQueue = new ConcurrentLinkedQueue<>();
-        this.currentQueueSize = new AtomicInteger(0);
-        this.maxQueueLength = ConfigLoader.getInt("queue.length", 5);
-        this.numConsumerThreads = ConfigLoader.getInt("consumer.threads", 1);
-        
-        this.processingExecutor = Executors.newFixedThreadPool(numConsumerThreads);
-        
-        logInitialization();
-        startProcessingThreads();
+        try {
+            this.uploadDir = initializeDirectory(UPLOADS_DIR);
+            this.tempDir = initializeDirectory(TEMP_DIR);
+            
+            this.uploadQueue = new ConcurrentLinkedQueue<>();
+            this.currentQueueSize = new AtomicInteger(0);
+            
+            ConfigLoader.validateConsumerProperties();
+
+            this.maxQueueLength = ConfigLoader.getInt("queue.length", 1);
+            this.numConsumerThreads = ConfigLoader.getInt("consumer.threads", 1);
+            
+            this.processingExecutor = Executors.newFixedThreadPool(numConsumerThreads);
+            
+            logInitialization();
+            startProcessingThreads();
+        } catch (IllegalArgumentException e) {
+            System.err.println("❌ Failed to start consumer: " + e.getMessage());
+            throw e;
+        }
     }
 
     /**

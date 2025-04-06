@@ -30,6 +30,7 @@ public class ProducerMain {
      */
     public static void main(String[] args) {
         try {
+            ConfigLoader.validateProducerProperties();
             waitForConsumer();
             initializeFolderQueue();
             startProducerThreads();
@@ -46,25 +47,6 @@ public class ProducerMain {
         String basePath = ConfigLoader.get("producer.rootvideopath");
         File baseDir = new File(basePath);
         
-        // Convert to absolute path if it's not already
-        if (!baseDir.isAbsolute()) {
-            // Try to resolve relative to user's home directory
-            String userHome = System.getProperty("user.home");
-            baseDir = new File(userHome, basePath);
-        }
-        
-        if (!baseDir.exists()) {
-            System.out.println("❌ Video directory does not exist: " + baseDir.getAbsolutePath());
-            System.out.println("   Please create the directory and add video folders.");
-            System.exit(1);
-        }
-
-        if (!baseDir.isDirectory()) {
-            System.out.println("❌ Specified path is not a directory: " + baseDir.getAbsolutePath());
-            System.out.println("   Please specify a directory path in config.properties");
-            System.exit(1);
-        }
-
         // List all directories in the base path
         File[] folders = baseDir.listFiles(File::isDirectory);
         if (folders != null) {
