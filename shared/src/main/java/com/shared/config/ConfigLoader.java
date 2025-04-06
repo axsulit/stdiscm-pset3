@@ -119,6 +119,12 @@ public class ConfigLoader {
         if (!baseDir.isDirectory()) {
             throw new IllegalArgumentException("Specified path is not a directory: " + baseDir.getAbsolutePath());
         }
+
+        // Check if directory contains any valid video folders
+        File[] folders = baseDir.listFiles(File::isDirectory);
+        if (folders == null || folders.length == 0) {
+            throw new IllegalArgumentException("No valid video folders found in: " + baseDir.getAbsolutePath());
+        }
     }
 
     // validate consumer properties

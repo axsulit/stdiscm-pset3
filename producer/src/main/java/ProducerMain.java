@@ -18,7 +18,6 @@ public class ProducerMain {
     private static final int MAX_RETRIES = 10;           // Maximum number of connection retry attempts
     private static final int RETRY_DELAY_MS = 5000;     // Delay between retry attempts in milliseconds
     private static final int CONNECTION_TIMEOUT_MS = 5000; // Timeout for HTTP connections
-    private static final String FOLDER_PREFIX = "folder"; // Prefix for video source folders
     
     // Shared queue for all folders to be processed
     private static final ConcurrentLinkedQueue<File> folderQueue = new ConcurrentLinkedQueue<>();
@@ -61,13 +60,6 @@ public class ProducerMain {
         }
         
         System.out.println("📊 Total folders queued: " + folderQueue.size());
-        
-        // Exit if no valid folders found
-        if (folderQueue.isEmpty()) {
-            System.out.println("❌ No valid video folders found in: " + baseDir.getAbsolutePath());
-            System.out.println("   Please ensure the directory contains valid folders with videos.");
-            System.exit(1);
-        }
     }
 
     /**
