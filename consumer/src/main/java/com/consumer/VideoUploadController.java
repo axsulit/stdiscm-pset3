@@ -467,12 +467,4 @@ public class VideoUploadController {
             return Collections.emptyList();
         }
     }
-
-    @GetMapping("/queue-status")
-    @ResponseBody
-    public ResponseEntity<String> getQueueStatus() {
-        String status = String.format("Queue size: %d/%d", currentQueueSize.get(), maxQueueLength);
-        System.out.println("📊 Queue status check: " + status);
-        return ResponseEntity.ok(status);
-    }
 }
