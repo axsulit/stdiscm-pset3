@@ -1,7 +1,11 @@
-# GreenQueue - Video Processing Service
-
+# STDISCM S12 Problem Set 3: GreenQueue - Video Processing Service
 ![GreenQueue UI](sample.png)
+- GON GON, Zhoe Aeris F.
+- SULIT, Anne Gabrielle M.
+- TORIO, Ysobella D.
+- [GitHub Repo](https://github.com/axsulit/stdiscm-pset3)
 
+## Overview
 A producer-consumer exercise demonstrating concurrent programming, file I/O, queueing, and network communication. This project simulates a media upload service with video compression capabilities.
 
 ## Features
