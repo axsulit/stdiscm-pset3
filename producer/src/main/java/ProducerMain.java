@@ -60,6 +60,13 @@ public class ProducerMain {
         }
         
         System.out.println("📊 Total folders queued: " + folderQueue.size());
+        
+        // Exit if no valid folders found
+        if (folderQueue.isEmpty()) {
+            System.out.println("❌ No valid video folders found in: " + basePath);
+            System.out.println("   Please ensure the root video path contains valid folders with videos.");
+            System.exit(1);
+        }
     }
 
     /**
