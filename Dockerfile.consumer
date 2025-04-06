@@ -1,21 +1,26 @@
-FROM openjdk:17-jdk-slim as builder
+FROM gradle:7.6-jdk17 AS build
 
 WORKDIR /app
-
+    
 COPY . .
-
-RUN ./gradlew :consumer:build --no-daemon
-
-FROM openjdk:17-jdk-slim
+    
+RUN gradle :consumer:build -x test
+    
+FROM eclipse-temurin:17-jre
+    
 WORKDIR /app
-COPY --from=builder /app/consumer/build/libs/*.jar app.jar
+    
+
+RUN apt-get update && \
+        apt-get install -y ffmpeg && \
+        apt-get clean && \
+        rm -rf /var/lib/apt/lists/*
+    
+
+COPY --from=build /app/consumer/build/libs/*.jar /app/app.jar
+    
 VOLUME /uploads
 EXPOSE 8080
-
-# Install FFmpeg
-RUN apt-get update && \
-    apt-get install -y ffmpeg && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-ENTRYPOINT ["java", "-jar", "app.jar"]
+    
+CMD ["java", "-jar", "app.jar"]
+    

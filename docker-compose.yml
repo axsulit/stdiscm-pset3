@@ -9,7 +9,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./consumer/videos:/app/uploads
+      - ./consumer/uploads:/app/uploads
     networks:
       - media-net
 
