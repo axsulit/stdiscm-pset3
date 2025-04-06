@@ -34,10 +34,10 @@ stdiscm-pset3/
 The application can be configured through `shared/src/main/resources/config.properties`:
 
 ```properties
-producer.threads=2              # Number of producer threads
-producer.rootvideopath=./videos # Path to video source directory
-consumer.threads=3              # Number of consumer threads
-queue.length=4                  # Maximum queue size
+producer.threads=2              # Number of producer threads, must be > 0
+producer.rootvideopath=./videos # Path to video source directory, must be absolute path
+consumer.threads=3              # Number of consumer threads, must be > 0
+queue.length=4                  # Maximum queue size, must be > 0
 environment=local              # Environment (local/docker)
 ```
 
